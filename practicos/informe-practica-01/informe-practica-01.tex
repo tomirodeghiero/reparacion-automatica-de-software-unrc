@@ -1,0 +1,499 @@
+\documentclass[11pt,a4paper]{article}
+
+% ---------- Codificacion / idioma / fuentes (XeLaTeX + tectonic) ----------
+\usepackage{fontspec}
+\usepackage[spanish,es-noindentfirst]{babel}
+
+% ---------- Geometria y estilo general ----------
+\usepackage{geometry}
+\geometry{margin=2.4cm}
+\usepackage{xcolor}
+\usepackage{enumitem}
+\usepackage{booktabs}
+\usepackage{titlesec}
+\usepackage{fancyhdr}
+\usepackage{listings}
+\usepackage[most]{tcolorbox}
+\usepackage{hyperref}
+\usepackage{parskip}
+
+% ---------- Colores ----------
+\definecolor{brand}{HTML}{1F4E79}
+\definecolor{brandlight}{HTML}{EAF1F8}
+\definecolor{codebg}{HTML}{F6F8FA}
+\definecolor{codeframe}{HTML}{D0D7DE}
+\definecolor{kw}{HTML}{CF222E}
+\definecolor{str}{HTML}{0A3069}
+\definecolor{com}{HTML}{6E7781}
+\definecolor{ok}{HTML}{1A7F37}
+\definecolor{bad}{HTML}{B42318}
+
+% ---------- Hyperref ----------
+\hypersetup{colorlinks=true, linkcolor=brand, urlcolor=brand, citecolor=brand}
+
+% ---------- Titulos ----------
+\titleformat{\section}{\Large\bfseries\color{brand}}{\thesection.}{0.6em}{}
+\titleformat{\subsection}{\large\bfseries\color{brand!85!black}}{\thesubsection}{0.6em}{}
+\titlespacing*{\section}{0pt}{1.4em}{0.6em}
+
+% ---------- Encabezado / pie ----------
+\pagestyle{fancy}
+\fancyhf{}
+\lhead{\small\color{brand}\bfseries Reparación Automática de Software}
+\rhead{\small\color{brand} Práctica 1}
+\cfoot{\small\thepage}
+\renewcommand{\headrulewidth}{0.4pt}
+
+% ---------- Estilo de codigo ----------
+\lstdefinestyle{py}{
+  language=Python,
+  backgroundcolor=\color{codebg},
+  basicstyle=\ttfamily\small,
+  keywordstyle=\color{kw}\bfseries,
+  stringstyle=\color{str},
+  commentstyle=\color{com}\itshape,
+  numberstyle=\tiny\color{com},
+  numbers=left, numbersep=8pt,
+  frame=single, rulecolor=\color{codeframe},
+  framesep=6pt, xleftmargin=14pt,
+  showstringspaces=false,
+  breaklines=true, breakatwhitespace=true,
+  tabsize=4,
+  literate={á}{{\'a}}1 {é}{{\'e}}1 {í}{{\'i}}1 {ó}{{\'o}}1 {ú}{{\'u}}1 {ñ}{{\~n}}1
+}
+\lstdefinestyle{sh}{
+  language=bash,
+  backgroundcolor=\color{codebg},
+  basicstyle=\ttfamily\small,
+  keywordstyle=\color{brand}\bfseries,
+  commentstyle=\color{com}\itshape,
+  frame=single, rulecolor=\color{codeframe},
+  framesep=6pt, xleftmargin=6pt,
+  showstringspaces=false, breaklines=true, tabsize=2,
+}
+
+% ---------- Cajas ----------
+\newtcolorbox{answer}{colback=brandlight, colframe=brand, boxrule=0.8pt,
+  arc=3pt, left=8pt, right=8pt, top=6pt, bottom=6pt}
+
+\newtcolorbox{def-err-fail}{colback=white, colframe=bad!70!black, boxrule=0.8pt,
+  arc=3pt, left=8pt, right=8pt, top=6pt, bottom=6pt}
+
+% Etiquetas
+\newcommand{\lblP}{\textcolor{ok}{\textbf{[PASA]}}}
+\newcommand{\lblF}{\textcolor{bad}{\textbf{[FALLA]}}}
+\newcommand{\defecto}{\textbf{\textcolor{bad}{Defecto (fault):}}\ }
+\newcommand{\error}{\textbf{\textcolor{bad}{Error (infección):}}\ }
+\newcommand{\falla}{\textbf{\textcolor{bad}{Falla (failure):}}\ }
+\newcommand{\code}[1]{\colorbox{codebg}{\ttfamily\small #1}}
+
+% =====================================================================
+\begin{document}
+
+% ---------- Portada ----------
+\begin{center}
+  {\LARGE\bfseries\color{brand} Práctica 1 --- Debugging y Prueba de Código}\\[0.4em]
+  {\large Reparación Automática de Software --- 2026}\\[0.2em]
+  {\normalsize Universidad Nacional de Río Cuarto (UNRC)}\\[1.2em]
+\end{center}
+
+\begin{answer}
+\small\textbf{Resumen.} Este informe resuelve los cuatro ejercicios de la Práctica 1.
+Los Ejercicios 1 y 2 documentan la instalación de \emph{The Debugging Book} y los conceptos
+centrales de sus capítulos \emph{01\_Intro} y \emph{02\_Observing}. Los Ejercicios 3 y 4
+analizan los módulos \code{max.py} y \code{person.py}: para cada test que falla se identifica el
+\textbf{defecto}, el \textbf{error} y la \textbf{falla}, y se propone la corrección.
+\textbf{Todos los resultados de los tests fueron verificados ejecutando el código} (Python 3.9).
+\end{answer}
+
+% ---------- Vocabulario base ----------
+\section*{\normalsize\color{brand}Vocabulario base (Cap.\ 1)}
+\vspace{-0.4em}
+Los tres términos que se usan en todo el informe (del capítulo \emph{Introduction to Debugging}):
+\begin{itemize}[leftmargin=1.4em, itemsep=2pt]
+  \item \defecto la porción de código escrita incorrectamente (la causa raíz en el texto del programa).
+  \item \error un estado interno del programa durante la ejecución que es incorrecto por culpa del defecto (el texto lo llama \emph{infection}). Un defecto puede no producir error si nunca se ejecuta o el estado malo no llega a propagarse.
+  \item \falla el comportamiento observable e incorrecto (salida errónea, excepción, resultado equivocado) que percibe quien usa el programa.
+\end{itemize}
+La cadena causal es: \textbf{Defecto} $\rightarrow$ \textbf{Error} $\rightarrow$ \textbf{Falla}.
+
+\newpage
+% =====================================================================
+\section{Instalación de \emph{The Debugging Book}}
+
+Pasos ejecutados sobre Ubuntu 22.04+ (x86-64), siguiendo la guía:
+
+\begin{enumerate}[leftmargin=1.6em, itemsep=3pt]
+  \item Descargar desde \href{https://www.debuggingbook.org/}{debuggingbook.org} el paquete de
+        notebooks: \emph{resources} $\rightarrow$ \emph{All Notebooks (.zip)}.
+  \item Descomprimir y aplicar los ajustes previos (Graphviz + fix de \code{requirements.txt}).
+\end{enumerate}
+
+\begin{lstlisting}[style=sh]
+# 1. Descomprimir el material
+unzip debuggingbook-notebooks.zip
+cd debuggingbook-notebooks     # carpeta resultante
+
+# 2. Fix requerido por la guia (punto d): en requirements.txt,
+#    la linea 30 debe empezar con "showast2" en lugar de "showast".
+sed -i '30s/^showast/showast2/' requirements.txt
+
+# 3. Asegurar Graphviz (necesario para los grafos de las notebooks)
+dot --version || sudo apt install graphviz
+
+# 4. Crear y activar un entorno virtual aislado
+python3 -m venv .venv
+source .venv/bin/activate
+
+# 5. Instalar dependencias  (OJO: la guia dice "requirements"
+#    pero el comando correcto lleva la extension .txt)
+pip install -r requirements.txt
+
+# 6. Levantar las notebooks
+jupyter notebook
+# Si no abre el navegador: http://localhost:8888/tree
+\end{lstlisting}
+
+\begin{answer}\small
+\textbf{Notas / correcciones respecto del enunciado:}
+\begin{itemize}[leftmargin=1.3em, itemsep=1pt, topsep=2pt]
+  \item El fix del punto (d) evita el conflicto de nombres del paquete \code{showast} por \code{showast2}.
+  \item El punto (h) dice \code{pip install -r requirements}; el comando correcto es
+        \code{pip install -r requirements.txt}.
+  \item Conviene crear el \code{venv} \emph{dentro} de la carpeta descomprimida para mantener todo aislado.
+\end{itemize}
+\end{answer}
+
+% =====================================================================
+\section{Capítulos \emph{01\_Intro} y \emph{02\_Observing}}
+
+\subsection*{01 --- Introduction to Debugging}
+Ideas centrales completadas:
+\begin{itemize}[leftmargin=1.4em, itemsep=2pt]
+  \item Distinción \textbf{defecto / error / falla} (ver vocabulario base). Es el marco que se usa en los Ejercicios 3 y 4.
+  \item \textbf{El método científico del debugging}: observar la falla, formular una \emph{hipótesis} sobre la causa, predecir una consecuencia observable, experimentar para confirmarla o refutarla, y repetir hasta aislar el defecto. Es un proceso iterativo, no adivinanza.
+  \item \textbf{Debugging = búsqueda de la causa raíz}, no sólo enmascarar el síntoma: corregir el defecto, no la falla.
+  \item Ejemplo canónico del libro: \code{remove\_html\_markup}, donde un caso con comillas rompe la función y sirve para practicar la formulación de hipótesis.
+\end{itemize}
+
+\subsection*{02 --- How to Observe}
+Técnicas para observar el estado del programa y localizar el error:
+\begin{itemize}[leftmargin=1.4em, itemsep=2pt]
+  \item \textbf{Observación con \code{print}/logging}: rápida pero invasiva; útil para un primer sondeo.
+  \item \textbf{Depurador interactivo} (\code{pdb}, breakpoints): inspeccionar variables, avanzar paso a paso, examinar el \emph{stack}.
+  \item \textbf{Aserciones (\code{assert})}: codifican invariantes; detectan el error \emph{cerca} de su origen, antes de que se propague hasta la falla.
+  \item El objetivo es acortar la distancia entre \emph{defecto} y \emph{error observado}: cuanto antes se detecta el estado infectado, más fácil es ubicar la línea culpable.
+\end{itemize}
+
+% =====================================================================
+\section{Módulo \code{max.py}}
+
+El módulo tiene dos funciones. \code{max\_int} es correcta; el defecto está en \code{max\_int\_seq}.
+
+\subsection{Tests}
+Archivo entregable: \code{test\_max.py} (ejecutable con \code{pytest -v}).
+
+\begin{lstlisting}[style=py]
+from max import max_int, max_int_seq
+
+# --- max_int: correcta, todos pasan ---
+def test_max_int_a_mayor():   assert max_int(5, 3) == 5   # PASA
+def test_max_int_b_mayor():   assert max_int(3, 5) == 5   # PASA
+def test_max_int_iguales():   assert max_int(4, 4) == 4   # PASA
+
+# --- max_int_seq ---
+# Spec asumida (segun el codigo): distinta longitud -> gana la mas larga;
+# igual longitud -> gana la que tiene mas maximos elemento-a-elemento.
+def test_seq_distinta_longitud():
+    assert max_int_seq([1], [2, 3]) == [2, 3]            # PASA
+def test_seq_igual_longitud_gana_b():
+    assert max_int_seq([1, 2], [3, 4]) == [3, 4]         # PASA (por coincidencia)
+def test_seq_igual_longitud_gana_a():
+    assert max_int_seq([9, 9], [1, 1]) == [9, 9]         # FALLA
+def test_seq_igual_longitud_gana_a_2():
+    assert max_int_seq([3, 5], [1, 2]) == [3, 5]         # FALLA
+\end{lstlisting}
+
+\textbf{Resultado verificado:} los tests de \code{max\_int} y el de distinta longitud \lblP{}.
+El caso en que \code{b} gana legítimamente \lblP{} \emph{por coincidencia} (ver abajo).
+Los dos últimos \lblF{}: para \code{[9,9]} vs \code{[1,1]} la función devuelve \code{[1,1]} cuando
+debería devolver \code{[9,9]}.
+
+\subsection{Defecto, error y falla}
+\begin{def-err-fail}
+\defecto en la línea 28, la comparación es
+\code{if max\_int(a[i], b[i]) == a:} — compara el máximo (un \emph{int}) contra la \emph{lista} completa \code{a}.
+Debería comparar contra el elemento \code{a[i]}.
+\smallskip
+
+\error \code{max\_int(a[i], b[i])} devuelve un \code{int}, que nunca es igual a la lista \code{a};
+por lo tanto la condición es \emph{siempre falsa}. El contador \code{max\_a} queda en \code{0} y sólo
+se incrementa \code{max\_b}, aunque \code{a} tenga todos los máximos. El estado interno de los
+contadores es incorrecto.
+\smallskip
+
+\falla en el caso de igual longitud la función \emph{siempre} devuelve \code{b}. Con
+\code{max\_int\_seq([9,9],[1,1])} retorna \code{[1,1]} en lugar de \code{[9,9]}.
+\smallskip
+
+\emph{Coincidencia:} el test con \code{[1,2]} vs \code{[3,4]} pasa porque ahí \code{b}
+efectivamente debía ganar; el bug queda oculto (\emph{coincidental correctness}).
+\end{def-err-fail}
+
+\subsection{Corrección}
+\begin{lstlisting}[style=py]
+        for i in range(0, len(a)):
+            if max_int(a[i], b[i]) == a[i]:   # FIX: a[i] en lugar de a
+                max_a += 1
+            else:
+                max_b += 1
+\end{lstlisting}
+Con este cambio, los cuatro tests de \code{max\_int\_seq} pasan (verificado).
+Observación adicional: en caso de empate (\code{max\_a == max\_b}) la función devuelve \code{b};
+es una decisión de diseño razonable pero conviene documentarla.
+
+% =====================================================================
+\section{Módulo \code{person.py}}
+
+Se responden las preguntas embebidas como \code{\#TODO} en el módulo. Archivo de tests entregable:
+\code{test\_person.py}. Las fechas se calculan relativas a \emph{hoy} para que los tests sean
+deterministas.
+
+% ---------------- __init__ ----------------
+\subsection{\code{\_\_init\_\_} --- ¿Es correcta la implementación?}
+\begin{answer}
+\textbf{Respuesta:} funciona como simple contenedor de datos, pero \textbf{no valida} sus argumentos,
+por lo que \emph{permite construir estados inválidos} (p.\ ej.\ una fecha de nacimiento en el futuro,
+o \code{studies} que no sea un \code{Studies}). Bajo la especificación ``un \code{Person} no debe
+poder estar en un estado inválido'', la implementación es \emph{incompleta}.
+\end{answer}
+
+\begin{lstlisting}[style=py]
+def test_init_guarda_atributos():           # PASA
+    p = Person(date(2000,1,1), "David", Studies.BACHELOR)
+    assert p.name == "David" and p.studies == Studies.BACHELOR
+
+def test_init_no_valida_fecha_futura():     # FALLA (segun spec)
+    futuro = date(date.today().year + 5, 1, 1)
+    p = Person(futuro, "David")
+    assert p.birthdate <= date.today()      # el constructor deberia rechazarla
+\end{lstlisting}
+
+\begin{def-err-fail}
+\defecto ausencia de validación en el constructor.\quad
+\error el objeto queda con \code{\_birthdate} en el futuro (estado inválido).\quad
+\falla luego \code{age} devuelve una edad negativa y \code{\_\_str\_\_} muestra datos absurdos.
+\end{def-err-fail}
+
+\begin{answer}\small\textbf{Corrección sugerida:} validar en el constructor.
+\begin{lstlisting}[style=py]
+def __init__(self, birth, name, studies=Studies.NONE):
+    if not isinstance(birth, date) or birth > date.today():
+        raise ValueError("birth debe ser una fecha no futura")
+    if not name:
+        raise ValueError("name no puede ser vacio")
+    if not isinstance(studies, Studies):
+        raise TypeError("studies debe ser un Studies")
+    self._birthdate = birth; self._name = name; self._studies = studies
+\end{lstlisting}
+\end{answer}
+
+% ---------------- mutabilidad ----------------
+\subsection{¿Sería correcto permitir modificar la fecha de nacimiento y el nombre?}
+\begin{answer}
+\textbf{Fecha de nacimiento: no.} Es un dato inmutable en la realidad (nunca cambia); permitir
+modificarla sólo habilita estados inconsistentes. Por eso el módulo expone \code{birthdate} sólo
+como \emph{property} de lectura, sin \emph{setter}: es la decisión correcta.
+\smallskip
+
+\textbf{Nombre: es discutible.} Un nombre \emph{puede} cambiar legalmente, así que un \emph{setter}
+sería defendible. Pero si el nombre forma parte de la identidad del objeto (se usa en \code{\_\_eq\_\_}
+y en un eventual \code{\_\_hash\_\_}), hacerlo mutable rompe invariantes al usar el objeto en
+\code{set}/\code{dict}. Mantenerlo inmutable (como está) es la opción más segura.
+\end{answer}
+
+% ---------------- age ----------------
+\subsection{\code{age} --- ¿Es correcta la implementación?}
+\begin{answer}
+\textbf{Respuesta: no.} Calcula la edad restando sólo los años y \emph{ignora si el cumpleaños ya
+ocurrió} este año. Para quien nació más tarde en el año que la fecha actual, sobreestima la edad en~1.
+\end{answer}
+
+\begin{lstlisting}[style=py]
+def test_age_cumpleanios_ya_paso():         # PASA
+    p = Person(date(date.today().year - 30, 1, 1), "David")  # nacio 1-ene
+    assert p.age == 30
+
+def test_age_cumpleanios_no_llego():        # FALLA (off-by-one)
+    p = Person(date(date.today().year - 30, 12, 31), "David")  # nacio 31-dic
+    assert p.age == 29     # hasta diciembre todavia tiene 29
+\end{lstlisting}
+
+\begin{def-err-fail}
+\defecto \code{years = today.year - birth.year}, sin ajustar por mes/día.\quad
+\error para un nacido el 31-dic, \code{years} vale \code{30} cuando el valor correcto es \code{29}.\quad
+\falla \code{age} retorna un número mayor al real (verificado: devuelve \code{30} en vez de \code{29}).
+\end{def-err-fail}
+
+\begin{answer}\small\textbf{Corrección:} restar 1 si el cumpleaños de este año aún no llegó.
+\begin{lstlisting}[style=py]
+today = date.today()
+years = today.year - self._birthdate.year - (
+    (today.month, today.day) < (self._birthdate.month, self._birthdate.day)
+)
+return years
+\end{lstlisting}
+\end{answer}
+
+% ---------------- studies setter ----------------
+\subsection{\code{studies.setter} --- ¿Es correcta la implementación?}
+\begin{answer}
+\textbf{Respuesta: no.} El \emph{setter} asigna directamente sin validar. Esto (a)~acepta valores que
+no son \code{Studies}, rompiendo la invariante de tipo, y (b)~permite \emph{bajar} el nivel de estudios,
+lo cual no tiene sentido (no se ``des-estudia'' un título).
+\end{answer}
+
+\begin{lstlisting}[style=py]
+def test_studies_setter_actualiza():        # PASA
+    p = Person(date(2000,1,1), "David", Studies.NONE)
+    p.studies = Studies.MASTERS
+    assert p.studies == Studies.MASTERS
+
+def test_studies_setter_valida_tipo():      # FALLA (sin validacion)
+    p = Person(date(2000,1,1), "David", Studies.MASTERS)
+    p.studies = "PhD"                        # valor invalido
+    assert isinstance(p.studies, Studies)
+
+def test_studies_setter_no_regresa():       # FALLA (permite regresion)
+    p = Person(date(2000,1,1), "David", Studies.MASTERS)
+    p.studies = Studies.PRIMARY
+    assert p.studies == Studies.MASTERS
+\end{lstlisting}
+
+\begin{def-err-fail}
+\defecto asignación sin validación (\code{self.\_studies = new\_studies}).\quad
+\error \code{\_studies} queda con un \code{str} arbitrario o con un nivel menor al previo.\quad
+\falla un \code{Person} con nivel \code{MASTERS} pasa a \code{PRIMARY}, o \code{\_studies} deja de ser
+un \code{Studies} (verificado: ambas asignaciones se aceptan sin error).
+\end{def-err-fail}
+
+\begin{answer}\small\textbf{Corrección:} validar tipo e impedir regresión.
+\begin{lstlisting}[style=py]
+@studies.setter
+def studies(self, new_studies):
+    if not isinstance(new_studies, Studies):
+        raise TypeError("studies debe ser un Studies")
+    if new_studies.value[1] < self._studies.value[1]:
+        raise ValueError("el nivel de estudios no puede disminuir")
+    self._studies = new_studies
+\end{lstlisting}
+\end{answer}
+
+% ---------------- __eq__ ----------------
+\subsection{\code{\_\_eq\_\_} --- ¿Es correcta la implementación?}
+\begin{answer}
+\textbf{Respuesta: no}, tiene dos defectos. (1)~Compara los nombres con \code{is not} (identidad de
+objetos) en lugar de \code{!=} (igualdad de valor). (2)~Compara \code{age} en vez de \code{\_birthdate},
+lo que hace que la igualdad dependa del día en que se ejecute y que dos personas de distinta fecha
+pero misma edad se consideren iguales. Además, al definir \code{\_\_eq\_\_} sin \code{\_\_hash\_\_},
+la clase queda \emph{no hasheable}.
+\end{answer}
+
+\begin{lstlisting}[style=py]
+def test_eq_mismos_datos_nombre_interno():  # PASA (por interning)
+    a = Person(date(1990,5,5), "David", Studies.NONE)
+    b = Person(date(1990,5,5), "David", Studies.NONE)
+    assert a == b
+
+def test_eq_nombre_no_interno():            # FALLA (por `is not`)
+    n1 = "".join(["D","a","v","i","d"]); n2 = "".join(["D","a","v","i","d"])
+    a = Person(date(1990,5,5), n1, Studies.NONE)
+    b = Person(date(1990,5,5), n2, Studies.NONE)
+    assert a == b
+
+def test_person_es_hasheable():             # FALLA (falta __hash__)
+    a = Person(date(1990,5,5), "David", Studies.NONE)
+    assert hash(a) is not None
+\end{lstlisting}
+
+\begin{def-err-fail}
+\defecto \code{if self.\_name is not other.\_name} usa identidad; y se compara \code{age} en vez de \code{\_birthdate}.\quad
+\error para dos nombres iguales pero construidos en runtime (no \emph{interned}), \code{is not} da
+\code{True} y la función retorna \code{False} prematuramente.\quad
+\falla \code{a == b} devuelve \code{False} siendo lógicamente iguales (verificado). Y \code{hash(a)}
+lanza \code{TypeError: unhashable type}.
+\end{def-err-fail}
+
+\begin{answer}\small\textbf{Corrección:} comparar por valor, usar \code{\_birthdate} y agregar \code{\_\_hash\_\_}.
+\begin{lstlisting}[style=py]
+def __eq__(self, other):
+    if not isinstance(other, Person):
+        return False
+    if self._name != other._name:            # FIX: != en lugar de `is not`
+        return False
+    if self._birthdate != other._birthdate:  # FIX: comparar fecha, no age
+        return False
+    if self._studies != other._studies:
+        return False
+    return True
+
+def __hash__(self):
+    return hash((self._name, self._birthdate, self._studies))
+\end{lstlisting}
+\end{answer}
+
+% ---------------- max ----------------
+\subsection{\code{max(a, b)} --- Implementar y proveer tests}
+\begin{answer}
+La consigna no fija qué significa ``persona máxima'', así que se define un
+\textbf{orden explícito y documentado}: gana quien tiene \emph{mayor nivel de estudios}; a igual nivel,
+gana quien tiene \emph{mayor edad} (fecha de nacimiento más temprana); si empatan en todo, se devuelve \code{a}.
+\end{answer}
+
+\begin{lstlisting}[style=py]
+def max(a: Person, b: Person) -> Person:
+    """Persona maxima: mayor nivel de estudios; a igualdad, mayor edad."""
+    na, nb = a.studies.value[1], b.studies.value[1]   # nivel ISCED interno
+    if na != nb:
+        return a if na > nb else b
+    if a.birthdate != b.birthdate:
+        return a if a.birthdate < b.birthdate else b   # mas edad = fecha menor
+    return a
+\end{lstlisting}
+
+\begin{lstlisting}[style=py]
+def test_max_por_estudios():        # PASA con la implementacion
+    a = Person(date(1990,1,1), "David", Studies.DOCTORATE)
+    b = Person(date(1990,1,1), "Isaac", Studies.BACHELOR)
+    assert max(a, b) is a
+
+def test_max_desempata_por_edad():  # PASA con la implementacion
+    a = Person(date(1970,1,1), "David", Studies.MASTERS)   # mas grande
+    b = Person(date(2000,1,1), "Isaac", Studies.MASTERS)
+    assert max(a, b) is a
+\end{lstlisting}
+\begin{answer}\small
+\textbf{Criterio verificado} ejecutando ambos tests. Si la cátedra prefiere otro orden (p.\ ej.\ sólo
+por edad), basta cambiar la clave de comparación; la estructura del código y de los tests se mantiene.
+\end{answer}
+
+% =====================================================================
+\section*{\normalsize\color{brand}Resumen de defectos encontrados}
+\vspace{-0.3em}
+\begin{center}
+\small
+\begin{tabular}{@{}p{2.6cm}p{4.5cm}p{7.2cm}@{}}
+\toprule
+\textbf{Módulo / función} & \textbf{Defecto} & \textbf{Falla observable} \\
+\midrule
+\code{max\_int\_seq} & \code{== a} en vez de \code{== a[i]} & Con igual longitud siempre devuelve \code{b}. \\
+\code{Person.\_\_init\_\_} & Sin validación de argumentos & Permite fecha futura / tipos inválidos. \\
+\code{Person.age} & No ajusta por mes/día & Edad sobreestimada en 1 antes del cumpleaños. \\
+\code{Person.studies} (setter) & Sin validación & Acepta tipos inválidos y permite bajar de nivel. \\
+\code{Person.\_\_eq\_\_} & \code{is not} en vez de \code{!=}; usa \code{age} & Personas iguales dan \code{!=}; clase no hasheable. \\
+\code{Person.max} & No implementada & Lanzaba \code{NotImplementedError}; ya implementada. \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\end{document}
