@@ -1,0 +1,13 @@
+[
+	{ "v": 0, "expected": [0] },
+  { "v": 1, "expected": [1] },
+  { "v": 2, "expected": [1, 0] },
+  { "v": 3, "expected": [1, 1] },
+  { "v": 4, "expected": [1, 0, 0] },
+  { "v": 5, "expected": [1, 0, 1] },
+  { "v": 6, "expected": [1, 1, 0] },
+  { "v": 7, "expected": [1, 1, 1] },
+  { "v": 8, "expected": [1, 0, 0, 0] },
+  { "v": 9, "expected": [1, 0, 0, 1] }
+]
+
